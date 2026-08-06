@@ -69,6 +69,24 @@ export const RENAMED_MIGRATION_COMPATIBILITY = [
     toVersion: "059",
     toName: "manifest_routing",
   },
+  {
+    fromVersion: "135",
+    fromName: "migrate_model_capability_max_token",
+    toVersion: "136",
+    toName: "migrate_model_capability_max_token",
+  },
+  {
+    fromVersion: "136",
+    fromName: "dario_fallback_backend",
+    toVersion: "137",
+    toName: "dario_fallback_backend",
+  },
+  {
+    fromVersion: "136",
+    fromName: "radar_cache_settings",
+    toVersion: "138",
+    toName: "radar_cache_settings",
+  },
 ] as const;
 
 export const LEGACY_VERSION_SLOT_MIGRATIONS = [
