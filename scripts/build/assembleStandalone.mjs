@@ -105,7 +105,7 @@ const NATIVE_ASSET_ENTRIES = [
   },
 ];
 
-/** @type {{label:string, src:string[], dest:string[]}[]} */
+/** @type {{label:string, src:string[], dest:string[], skipIfPresent?:boolean}[]} */
 const EXTRA_MODULE_ENTRIES = [
   {
     label: "@swc/helpers",
@@ -248,6 +248,20 @@ const EXTRA_MODULE_ENTRIES = [
     dest: ["node_modules", "sql.js"],
   },
   {
+    // Next.js traces only @huggingface/transformers/package.json into standalone
+    // but misses the dist/ directory (CJS/ESM entry points). Copy the full package
+    // so require.resolve() and dynamic imports find the actual runtime files.
+    // We do NOT walk its transitive dependencies here — that would pull in sharp,
+    // which needs libvips native libs. The LLMLingua closure (colocateOptionals)
+    // handles the SLM-specific subset separately.
+    // skipIfPresent: the standalone may already have a pinned version from
+    // Next.js tracing — do not overwrite it with the root's (potentially stale) copy.
+    label: "@huggingface/transformers (standalone dist fix)",
+    src: ["node_modules", "@huggingface", "transformers"],
+    dest: ["node_modules", "@huggingface", "transformers"],
+    skipIfPresent: true,
+  },
+  {
     label: "onnxruntime-node package runtime",
     src: ["node_modules", "onnxruntime-node"],
     dest: ["node_modules", "onnxruntime-node"],
@@ -359,6 +373,39 @@ async function syncExtraModulesToDir(projectRoot, outDir, fsImpl, log) {
     if (!(await exists(sourcePath))) continue;
 
     const destPath = path.join(outDir, ...entry.dest);
+
+    // skipIfPresent: do not overwrite a package that the standalone bundle already
+    // has and is complete (has its entry files). If Next.js traced only package.json
+    // without dist/, we still need to copy the full package for imports to work.
+    if (entry.skipIfPresent) {
+      const destPkgJson = path.join(destPath, "package.json");
+      if (await exists(destPkgJson)) {
+        try {
+          const manifest = JSON.parse(await fs.readFile(destPkgJson, "utf8"));
+          const entryTargets = [];
+          if (typeof manifest.main === "string") entryTargets.push(manifest.main);
+          if (typeof manifest.module === "string") entryTargets.push(manifest.module);
+          if (typeof manifest.exports === "string") entryTargets.push(manifest.exports);
+          else if (manifest.exports && typeof manifest.exports === "object") {
+            const walk = (obj) => {
+              for (const v of Object.values(obj)) {
+                if (typeof v === "string") entryTargets.push(v);
+                else if (v && typeof v === "object") walk(v);
+              }
+            };
+            walk(manifest.exports);
+          }
+          const isComplete = entryTargets.length > 0
+            ? entryTargets.some((t) => fsSync.existsSync(path.join(destPath, t)))
+            : true;
+          if (isComplete) {
+            log.log(`[assembleStandalone] Skipped (already complete): ${entry.label}`);
+            continue;
+          }
+        } catch { /* fall through to copy */ }
+      }
+    }
+
     const mkdir =
       typeof fsImpl.mkdir === "function" ? fsImpl.mkdir.bind(fsImpl) : fs.mkdir.bind(fs);
     await mkdir(path.dirname(destPath), { recursive: true });
@@ -528,6 +575,38 @@ function copyNativeAssetsAndExtraModules(projectRoot, resolvedOutDir) {
     const src = path.join(projectRoot, ...mod.src);
     if (!fsSync.existsSync(src)) continue;
     const dest = path.join(resolvedOutDir, ...mod.dest);
+
+    // skipIfPresent: do not overwrite a package that is already complete in the
+    // standalone bundle (preserves pinned versions from Next.js tracing).
+    if (mod.skipIfPresent) {
+      const destPkgJson = path.join(dest, "package.json");
+      if (fsSync.existsSync(destPkgJson)) {
+        try {
+          const manifest = JSON.parse(fsSync.readFileSync(destPkgJson, "utf8"));
+          const entryTargets = [];
+          if (typeof manifest.main === "string") entryTargets.push(manifest.main);
+          if (typeof manifest.module === "string") entryTargets.push(manifest.module);
+          if (typeof manifest.exports === "string") entryTargets.push(manifest.exports);
+          else if (manifest.exports && typeof manifest.exports === "object") {
+            const walk = (obj) => {
+              for (const v of Object.values(obj)) {
+                if (typeof v === "string") entryTargets.push(v);
+                else if (v && typeof v === "object") walk(v);
+              }
+            };
+            walk(manifest.exports);
+          }
+          const isComplete = entryTargets.length > 0
+            ? entryTargets.some((t) => fsSync.existsSync(path.join(dest, t)))
+            : true;
+          if (isComplete) {
+            console.log(`[assembleStandalone] Skipped (already complete): ${mod.label}`);
+            continue;
+          }
+        } catch { /* fall through to copy */ }
+      }
+    }
+
     fsSync.mkdirSync(path.dirname(dest), { recursive: true });
     fsSync.cpSync(src, dest, { recursive: true, force: true });
     console.log(`[assembleStandalone] Synced module: ${mod.label}`);

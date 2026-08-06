@@ -171,24 +171,20 @@ export function colocateLlmlinguaOptionals({
   }
 
   const closure = computeDependencyClosure(rootNm, seeds);
-  const transformersClosure = existsSync(join(rootNm, "@huggingface", "transformers"))
-    ? computeDependencyClosure(rootNm, ["@huggingface/transformers"])
-    : [];
-  const fullClosure = Array.from(new Set([...closure, ...transformersClosure]));
 
   // Check the complete closure rather than only directory existence. A partially
   // populated bundle (e.g. Next.js tracing only package.json) must still receive
   // the full package payload and missing transitive dependencies.
   if (
-    fullClosure.length > 0 &&
-    fullClosure.every((name) => isPackageComplete(targetNm, name))
+    closure.length > 0 &&
+    closure.every((name) => isPackageComplete(targetNm, name))
   ) {
     return { skipped: true, reason: "already co-located" };
   }
 
   let copied = 0;
 
-  for (const name of fullClosure) {
+  for (const name of closure) {
     const dest = join(targetNm, name);
     if (isPackageComplete(targetNm, name)) {
       continue;
@@ -211,5 +207,5 @@ export function colocateLlmlinguaOptionals({
     );
   }
 
-  return { skipped: false, copied, closure: fullClosure.length };
+  return { skipped: false, copied, closure: closure.length };
 }
