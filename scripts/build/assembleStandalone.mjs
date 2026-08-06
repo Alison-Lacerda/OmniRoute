@@ -90,6 +90,11 @@ const NATIVE_ASSET_ENTRIES = [
     dest: ["node_modules", "better-sqlite3", "build"],
   },
   {
+    label: "onnxruntime-node native binaries",
+    src: ["node_modules", "onnxruntime-node", "bin"],
+    dest: ["node_modules", "onnxruntime-node", "bin"],
+  },
+  {
     // TPROXY IP_TRANSPARENT addon (Fase 3 / Epic A). Built by build-tproxy-native
     // before assembly; Linux-only + opt-in, so the source is absent on non-Linux
     // builds → syncNativeAssetsToDir skips it gracefully. The runtime loader
@@ -241,6 +246,11 @@ const EXTRA_MODULE_ENTRIES = [
     label: "sql.js WASM fallback runtime",
     src: ["node_modules", "sql.js"],
     dest: ["node_modules", "sql.js"],
+  },
+  {
+    label: "onnxruntime-node package runtime",
+    src: ["node_modules", "onnxruntime-node"],
+    dest: ["node_modules", "onnxruntime-node"],
   },
   {
     label: "sqlite-vec wrapper (vector memory - loaded at runtime via createRequire)",
