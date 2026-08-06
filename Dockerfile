@@ -126,17 +126,18 @@ import { createRequire } from 'node:module'; \
 import { pathToFileURL } from 'node:url'; \
 const standaloneRoot = '/app/.build/next/standalone/node_modules/'; \
 const require = createRequire('/app/.build/next/standalone/package.json'); \
+const isNativeErr = (e) => e.code === 'ERR_DLOPEN_FAILED' || /ERR_DLOPEN_FAILED|cannot open shared object file|Could not load the .* module/i.test(String(e.message || e)); \
 for (const pkg of ['@atjsh/llmlingua-2', '@huggingface/transformers', '@tensorflow/tfjs', 'js-tiktoken']) { \
   const resolved = require.resolve(pkg); \
   if (!resolved.startsWith(standaloneRoot)) throw new Error(pkg + ' resolved outside standalone: ' + resolved); \
   try { await import(pathToFileURL(resolved).href); } \
-  catch (e) { if (e.code === 'ERR_DLOPEN_FAILED') console.warn('⚠ ' + pkg + ': native dep unavailable in builder (OK, will load at runtime)'); \
+  catch (e) { if (isNativeErr(e)) console.warn('⚠ ' + pkg + ': native dep unavailable in builder (OK, will load at runtime)'); \
   else throw e; } \
 } \
 const onnxRuntime = require.resolve('onnxruntime-node'); \
 if (!onnxRuntime.startsWith(standaloneRoot)) throw new Error('onnxruntime-node resolved outside standalone: ' + onnxRuntime); \
 try { await import(pathToFileURL(onnxRuntime).href); } \
-catch (e) { if (e.code === 'ERR_DLOPEN_FAILED') console.warn('⚠ onnxruntime-node: native dep unavailable in builder (OK)'); \
+catch (e) { if (isNativeErr(e)) console.warn('⚠ onnxruntime-node: native dep unavailable in builder (OK)'); \
 else throw e; } \
 "
 
