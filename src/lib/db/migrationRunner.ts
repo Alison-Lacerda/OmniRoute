@@ -900,23 +900,31 @@ export function runMigrations(db: SqliteAdapter, options?: { isNewDb?: boolean }
   // interpolates this resolved value, so it auto-reflects any override.
   const maxPendingMigrations = resolveMaxPendingMigrations();
 
+  const unappliedPending = actionablePending.filter(
+    (migration) => !isSchemaAlreadyApplied(db, migration)
+  );
+
   if (
     !isTestEnvironment &&
     !isNewDb &&
     process.env.DISABLE_SQLITE_AUTO_BACKUP !== "true" &&
     maxPendingMigrations > 0 &&
     applied.size > 0 &&
-    actionablePending.length > maxPendingMigrations
+    unappliedPending.length > maxPendingMigrations
   ) {
     const physicalBaseline = inferPhysicalSchemaBaseline(db);
     const plausiblePendingCount = physicalBaseline
       ? getPlausiblePendingCount(files, physicalBaseline.version)
       : null;
 
-    if (plausiblePendingCount !== null && actionablePending.length <= plausiblePendingCount) {
+    if (
+      plausiblePendingCount !== null &&
+      (actionablePending.length <= plausiblePendingCount ||
+        unappliedPending.length <= plausiblePendingCount)
+    ) {
       console.warn(
         `[Migration] Allowing ${actionablePending.length} pending migrations on an existing database ` +
-          `because the physical schema only proves ${physicalBaseline?.version} ` +
+          `because the physical schema proves ${physicalBaseline?.version} ` +
           `(${physicalBaseline?.description}).`
       );
     } else {
