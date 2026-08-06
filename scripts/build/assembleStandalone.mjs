@@ -396,7 +396,7 @@ async function syncExtraModulesToDir(projectRoot, outDir, fsImpl, log) {
             walk(manifest.exports);
           }
           const isComplete = entryTargets.length > 0
-            ? entryTargets.some((t) => fsSync.existsSync(path.join(destPath, t)))
+            ? entryTargets.every((t) => fsSync.existsSync(path.join(destPath, t)))
             : true;
           if (isComplete) {
             log.log(`[assembleStandalone] Skipped (already complete): ${entry.label}`);
@@ -597,7 +597,7 @@ function copyNativeAssetsAndExtraModules(projectRoot, resolvedOutDir) {
             walk(manifest.exports);
           }
           const isComplete = entryTargets.length > 0
-            ? entryTargets.some((t) => fsSync.existsSync(path.join(dest, t)))
+            ? entryTargets.every((t) => fsSync.existsSync(path.join(dest, t)))
             : true;
           if (isComplete) {
             console.log(`[assembleStandalone] Skipped (already complete): ${mod.label}`);
