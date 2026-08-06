@@ -102,8 +102,25 @@ function isPackageComplete(nmDir, name) {
   if (!existsSync(manifestPath)) return false;
   try {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    const entry = manifest.main || manifest.module || "index.js";
-    return existsSync(join(pkgDir, entry));
+    const targets = [];
+    if (typeof manifest.main === "string") targets.push(manifest.main);
+    if (typeof manifest.module === "string") targets.push(manifest.module);
+    if (typeof manifest.exports === "string") targets.push(manifest.exports);
+    else if (manifest.exports && typeof manifest.exports === "object") {
+      const extractExports = (obj) => {
+        for (const val of Object.values(obj)) {
+          if (typeof val === "string") targets.push(val);
+          else if (val && typeof val === "object") extractExports(val);
+        }
+      };
+      extractExports(manifest.exports);
+    }
+
+    if (targets.length === 0) {
+      return true;
+    }
+
+    return targets.some((t) => existsSync(join(pkgDir, t)));
   } catch {
     return false;
   }
@@ -154,32 +171,25 @@ export function colocateLlmlinguaOptionals({
   }
 
   const closure = computeDependencyClosure(rootNm, seeds);
+  const transformersClosure = existsSync(join(rootNm, "@huggingface", "transformers"))
+    ? computeDependencyClosure(rootNm, ["@huggingface/transformers"])
+    : [];
+  const fullClosure = Array.from(new Set([...closure, ...transformersClosure]));
 
   // Check the complete closure rather than only directory existence. A partially
   // populated bundle (e.g. Next.js tracing only package.json) must still receive
   // the full package payload and missing transitive dependencies.
   if (
-    closure.length > 0 &&
-    closure.every(
-      (name) =>
-        isPackageComplete(targetNm, name) ||
-        (name === "@huggingface/transformers" &&
-          existsSync(join(targetNm, name, "package.json")))
-    )
+    fullClosure.length > 0 &&
+    fullClosure.every((name) => isPackageComplete(targetNm, name))
   ) {
     return { skipped: true, reason: "already co-located" };
   }
 
   let copied = 0;
 
-  for (const name of closure) {
+  for (const name of fullClosure) {
     const dest = join(targetNm, name);
-    if (
-      name === "@huggingface/transformers" &&
-      existsSync(join(dest, "package.json"))
-    ) {
-      continue;
-    }
     if (isPackageComplete(targetNm, name)) {
       continue;
     }
@@ -201,5 +211,5 @@ export function colocateLlmlinguaOptionals({
     );
   }
 
-  return { skipped: false, copied, closure: closure.length };
+  return { skipped: false, copied, closure: fullClosure.length };
 }
