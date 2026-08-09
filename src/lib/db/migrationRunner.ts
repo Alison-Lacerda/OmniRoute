@@ -481,8 +481,8 @@ function isSchemaAlreadyApplied(
       return hasTable(db, "ccr_blocks");
     case "140":
       return hasTable(db, "connection_runtime_state");
-    case "143":
-      return hasTable(db, "job_registry");
+    case "146":
+      return hasTable(db, "jobs") && hasTable(db, "job_runs");
     default:
       return false;
   }

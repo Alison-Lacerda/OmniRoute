@@ -96,7 +96,7 @@ export const RENAMED_MIGRATION_COMPATIBILITY = [
   {
     fromVersion: "139",
     fromName: "job_registry",
-    toVersion: "143",
+    toVersion: "146",
     toName: "job_registry",
   },
 ] as const;
