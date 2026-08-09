@@ -72,7 +72,7 @@ export const RENAMED_MIGRATION_COMPATIBILITY = [
   {
     fromVersion: "135",
     fromName: "migrate_model_capability_max_token",
-    toVersion: "136",
+    toVersion: "135",
     toName: "migrate_model_capability_max_token",
   },
   {
@@ -84,7 +84,7 @@ export const RENAMED_MIGRATION_COMPATIBILITY = [
   {
     fromVersion: "136",
     fromName: "radar_cache_settings",
-    toVersion: "138",
+    toVersion: "136",
     toName: "radar_cache_settings",
   },
   {
@@ -92,6 +92,12 @@ export const RENAMED_MIGRATION_COMPATIBILITY = [
     fromName: "ccr_blocks",
     toVersion: "139",
     toName: "ccr_blocks",
+  },
+  {
+    fromVersion: "139",
+    fromName: "job_registry",
+    toVersion: "143",
+    toName: "job_registry",
   },
 ] as const;
 
