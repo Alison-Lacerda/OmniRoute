@@ -78,7 +78,7 @@ export const RENAMED_MIGRATION_COMPATIBILITY = [
   {
     fromVersion: "136",
     fromName: "dario_fallback_backend",
-    toVersion: "137",
+    toVersion: "138",
     toName: "dario_fallback_backend",
   },
   {
@@ -86,6 +86,12 @@ export const RENAMED_MIGRATION_COMPATIBILITY = [
     fromName: "radar_cache_settings",
     toVersion: "138",
     toName: "radar_cache_settings",
+  },
+  {
+    fromVersion: "134",
+    fromName: "ccr_blocks",
+    toVersion: "139",
+    toName: "ccr_blocks",
   },
 ] as const;
 
