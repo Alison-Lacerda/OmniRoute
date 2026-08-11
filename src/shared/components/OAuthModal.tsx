@@ -32,7 +32,7 @@ export { formatDeviceCodeRemaining } from "./OAuthModalPanels";
 const GOOGLE_OAUTH_PROVIDERS = new Set(["antigravity", "agy"]);
 
 /** Providers that use a local callback server on a random port (PKCE browser flow). */
-const PKCE_CALLBACK_SERVER_PROVIDERS = new Set(["codex", "xai-oauth", "grok-cli"]);
+const PKCE_CALLBACK_SERVER_PROVIDERS = new Set(["codex", "xai-oauth", "grok-cli", "openference"]);
 
 // grok-cli is wired into BOTH the device-code panel (its default, #7358) and
 // the browser PKCE + import-token paths above/below (#7013) — the user picks
@@ -551,6 +551,8 @@ export default function OAuthModal({
           // Fixed native-app loopback callback, distinct ports so both can run concurrently (#7013).
           const grokBuildPort = provider === "xai-oauth" ? 56121 : 56122;
           redirectUri = `http://127.0.0.1:${grokBuildPort}/callback`;
+        } else if (provider === "openference") {
+          redirectUri = "http://127.0.0.1:56123/callback";
         } else if (provider === "windsurf" || provider === "devin-cli") {
           // Remote fallback: use OmniRoute's port with the /auth/callback path Windsurf expects.
           // On true localhost this code is never reached (callback server handles the flow above).
@@ -892,7 +894,15 @@ export default function OAuthModal({
         state = url.searchParams.get("state") || url.hash.replace(/^#/, "") || state;
         errorParam = url.searchParams.get("error");
         errorDescription = url.searchParams.get("error_description");
-      } catch {
+        if (!code && url.searchParams.get("response_type") === "code") {
+          throw new Error(
+            "This is the authorization URL (Step 1), not the callback URL. Please complete authorization in your browser and paste the callback URL (e.g. http://127.0.0.1:56123/callback?code=...) or authorization code."
+          );
+        }
+      } catch (err) {
+        if (err.message?.includes("Step 1")) {
+          throw err;
+        }
         // Claude Code remote auth may provide a raw "Authentication Code" like code#state.
         const [rawCode, rawState] = input.split("#", 2);
         code = rawCode || null;

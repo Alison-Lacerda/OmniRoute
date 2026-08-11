@@ -370,7 +370,9 @@ export function OAuthManualInputPanel({
             placeholder={
               provider === "claude" || provider === "cline"
                 ? "code#state or /callback?code=..."
-                : placeholderUrl
+                : provider === "openference"
+                  ? "http://127.0.0.1:56123/callback?code=... or code#state"
+                  : placeholderUrl
             }
             className="font-mono text-xs"
           />
