@@ -549,7 +549,7 @@ export default function OAuthModal({
           const grokBuildPort = provider === "xai-oauth" ? 56121 : 56122;
           redirectUri = `http://127.0.0.1:${grokBuildPort}/callback`;
         } else if (provider === "openference") {
-          redirectUri = "http://127.0.0.1:56123/callback";
+          redirectUri = "http://localhost:56123/callback";
         } else if (provider === "devin-desktop" || provider === "devin-cli") {
           // Retained callback-path fallback for the retired browser flow.
           const port = window.location.port || "20128";

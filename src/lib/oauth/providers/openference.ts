@@ -50,7 +50,7 @@ function resolveOpenferenceRedirectUri(redirectUri?: string): string {
   if (redirectUri && /^(http:\/\/)?(127\.0\.0\.1|localhost):56123/i.test(redirectUri)) {
     return redirectUri;
   }
-  return `http://127.0.0.1:${OPENFERENCE_CONFIG.loopbackPort}/callback`;
+  return `http://localhost:${OPENFERENCE_CONFIG.loopbackPort}/callback`;
 }
 
 export const openference = {
