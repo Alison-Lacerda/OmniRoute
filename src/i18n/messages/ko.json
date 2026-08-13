@@ -8146,7 +8146,16 @@
     "cliproxyapiHealth": "건강",
     "cliproxyapiPort": "포트",
     "qdrantHost": "호스트",
-    "qdrantCollection": "컬렉션"
+    "qdrantCollection": "컬렉션",
+    "thinkingBudgetIndependenceHint": "__MISSING__:Compression, routing, and token-limit features keep working in every mode. Auto does not mean “auto-show thinking” — it strips client reasoning fields.",
+    "thinkingModePassthrough": "__MISSING__:Passthrough",
+    "thinkingModePassthroughDesc": "__MISSING__:Leave client reasoning unchanged (effort, summary, thinking blocks). Required for Codex/Desktop visible thinking. Default.",
+    "thinkingModeAuto": "__MISSING__:Auto (strip)",
+    "thinkingModeAutoDesc": "__MISSING__:Strip all client thinking/reasoning fields (reasoning, reasoning_effort, Claude thinking, Gemini thinking_config) and let the provider invent defaults. Can hide thinking panels and break client summary requests.",
+    "thinkingModeCustom": "__MISSING__:Custom",
+    "thinkingModeCustomDesc": "__MISSING__:Overwrite every request with a fixed thinking token budget you set below.",
+    "thinkingModeAdaptive": "__MISSING__:Adaptive",
+    "thinkingModeAdaptiveDesc": "__MISSING__:Scale thinking budget from a base effort using message count, tools, and prompt length."
   },
   "contextRtk": {
     "title": "RTK Engine",
@@ -13055,7 +13064,7 @@
   },
   "kimiSponsorBanner": {
     "foundingFriendTitle": "Kimi(Moonshot AI)는 OmniRoute의 창립 오픈소스 친구입니다",
-    "description": "공식 Kimi API를 통해 OmniRoute에서 Kimi K3를 사용하세요. 더 적은 비용으로 최첨단 지능을 누리세요.",
+    "description": "신규 사용자는 첫 충전 시 API 크레딧을 15% 추가로 받습니다. 공식 Kimi API를 통해 OmniRoute에서 Kimi K3를 사용하세요.",
     "cta": "Kimi API 키 받기",
     "partnerLinkNote": "파트너 링크",
     "dismissAriaLabel": "닫기"

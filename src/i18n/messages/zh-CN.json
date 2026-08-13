@@ -8146,7 +8146,16 @@
     "cliproxyapiHealth": "健康",
     "cliproxyapiPort": "端口",
     "qdrantHost": "主机",
-    "qdrantCollection": "集合"
+    "qdrantCollection": "集合",
+    "thinkingBudgetIndependenceHint": "__MISSING__:Compression, routing, and token-limit features keep working in every mode. Auto does not mean “auto-show thinking” — it strips client reasoning fields.",
+    "thinkingModePassthrough": "__MISSING__:Passthrough",
+    "thinkingModePassthroughDesc": "__MISSING__:Leave client reasoning unchanged (effort, summary, thinking blocks). Required for Codex/Desktop visible thinking. Default.",
+    "thinkingModeAuto": "__MISSING__:Auto (strip)",
+    "thinkingModeAutoDesc": "__MISSING__:Strip all client thinking/reasoning fields (reasoning, reasoning_effort, Claude thinking, Gemini thinking_config) and let the provider invent defaults. Can hide thinking panels and break client summary requests.",
+    "thinkingModeCustom": "__MISSING__:Custom",
+    "thinkingModeCustomDesc": "__MISSING__:Overwrite every request with a fixed thinking token budget you set below.",
+    "thinkingModeAdaptive": "__MISSING__:Adaptive",
+    "thinkingModeAdaptiveDesc": "__MISSING__:Scale thinking budget from a base effort using message count, tools, and prompt length."
   },
   "contextRtk": {
     "title": "命令输出过滤引擎",
@@ -13055,7 +13064,7 @@
   },
   "kimiSponsorBanner": {
     "foundingFriendTitle": "Kimi (Moonshot AI) 是 OmniRoute 的创始开源好友",
-    "description": "通过官方 Kimi API 在 OmniRoute 中使用 Kimi K3。以更低的花费享受前沿智能。",
+    "description": "新用户首次充值可获得 15% 额外 API 额度。通过官方 Kimi API 在 OmniRoute 中使用 Kimi K3。",
     "cta": "获取 Kimi API 密钥",
     "partnerLinkNote": "合作伙伴链接",
     "dismissAriaLabel": "关闭"
