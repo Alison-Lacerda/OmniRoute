@@ -8,6 +8,8 @@ import {
   logUsage,
   addBufferToUsage,
   filterUsageForFormat,
+  normalizeUsage as normalizeTokenUsage,
+  sanitizeUsagePayloadForRequest,
 } from "./usageTracking.ts";
 import {
   parseSSELine,
@@ -23,6 +25,7 @@ import {
   hasActiveDeltaValue,
   injectThinkingSignature,
 } from "./streamHelpers.ts";
+import { rejectEmptyChoicesStream, buildEmptyChoicesStreamError } from "./streamEmptyChoices.ts";
 import { calculateCost } from "@/lib/usage/costCalculator";
 import { buildOmniRouteSseMetadataComment } from "@/domain/omnirouteResponseMeta";
 import { sseCommentsEnabled } from "./sseHeartbeat.ts";
@@ -76,6 +79,7 @@ import {
   restoreOpenAIToolNames,
 } from "../translator/helpers/toolCallHelper.ts";
 import { normalizeFinalOpenAIStreamChunk } from "./openAIStreamChunk.ts";
+import { collectClaudeDelta } from "./streamClaudeDelta.ts";
 
 /**
  * Race a response body read against a timeout.
@@ -725,6 +729,9 @@ export function createSSEStream(options: StreamOptions = {}) {
         }
       : null;
 
+  // Tracks whether any valuable chunk was forwarded; empty at flush => retryable 502 (#9268)
+  let forwardedValuableChunk = false;
+
   // Track content length for usage estimation (both modes)
   let totalContentLength = 0;
   // Passthrough: accumulate content and reasoning separately for call log response body
@@ -995,6 +1002,7 @@ export function createSSEStream(options: StreamOptions = {}) {
     const output = formatSSE(itemSanitized, sourceFormat);
     clientPayloadCollector.push(itemSanitized);
     reqLogger?.appendConvertedChunk?.(output);
+    forwardedValuableChunk = true;
     controller.enqueue(encoder.encode(output));
   };
 
@@ -1007,7 +1015,9 @@ export function createSSEStream(options: StreamOptions = {}) {
     // JSON.parse every SSE line will crash on `: x-omniroute-*` comment lines.
     if (!sseCommentsEnabled()) return;
 
-    const costUsd = finalUsage ? await calculateCost(provider, model, finalUsage) : 0;
+    const costUsd = finalUsage
+      ? await calculateCost(provider, model, normalizeTokenUsage(finalUsage))
+      : 0;
     const comment = buildOmniRouteSseMetadataComment({
       provider,
       model,
@@ -1308,7 +1318,10 @@ export function createSSEStream(options: StreamOptions = {}) {
                     parsed.type.startsWith("content_block") ||
                     parsed.type === "ping" ||
                     parsed.type === "error");
-
+                if (sanitizeUsagePayloadForRequest(parsed, body, clientResponseFormat)) {
+                  output = `data: ${JSON.stringify(parsed)}\n\n`;
+                  injectedUsage = true;
+                }
                 if (isResponsesSSE) {
                   // #6199/#6561 — statefully drop internal commentary-phase output (see
                   // ./responsesCommentaryDrop.ts) and clear the buffered `event:` line
@@ -1372,7 +1385,9 @@ export function createSSEStream(options: StreamOptions = {}) {
                           const responseToolCallEvents =
                             buildResponsesFunctionCallEvents(collectedToolCall);
                           output = formatSSEDataEvents(responseToolCallEvents);
-                          clientPayloadCollector.push(...responseToolCallEvents);
+                          for (const event of responseToolCallEvents) {
+                            clientPayloadCollector.push(event);
+                          }
                           reqLogger?.appendConvertedChunk?.(output);
                           controller.enqueue(encoder.encode(output));
                           injectedUsage = true;
@@ -1626,7 +1641,13 @@ export function createSSEStream(options: StreamOptions = {}) {
                   // retry." with finish_reason: "stop" — clients (Goose/opencode) feed that
                   // text back as a turn and spin in a retry loop. This restores the #3400
                   // behavior that #3422 inadvertently reverted (regression #3388/#3502).
-                  if (Array.isArray(parsed.choices) && parsed.choices.length === 0) {
+                  if (Array.isArray(parsed.choices) && (parsed.choices.length === 0 ||
+                      (parsed.choices.length === 1 &&
+                        parsed.choices[0]?.delta &&
+                        typeof parsed.choices[0].delta === "object" &&
+                        Object.keys(parsed.choices[0].delta).length === 0 &&
+                        !parsed.choices[0]?.finish_reason))
+                  ) {
                     const emptyChoicesUsage = extractUsage(parsed) ?? parsed.usage;
                     if (hasValidUsage(emptyChoicesUsage)) {
                       // Some upstreams (e.g. Ollama Cloud) emit prompt_tokens: 0
@@ -1835,6 +1856,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                     passthroughSawFinishReason = true;
                   }
 
+
                   if (isFinishChunk && passthroughHasToolCalls) {
                     toolFinishTime = now;
                     try {
@@ -1967,13 +1989,11 @@ export function createSSEStream(options: StreamOptions = {}) {
           }
 
           if (shouldDropResponsesCommentary && dropCommentary(parsed as JsonRecord)) continue;
-
           providerPayloadCollector.push(parsed);
-
           if (parsed && parsed.done) {
             continue;
           }
-
+          sanitizeUsagePayloadForRequest(parsed, body, targetFormat);
           if (parsed.choices?.[0]?.delta?.tool_calls) {
             lastToolCallChunkTime = now;
           }
@@ -1988,18 +2008,8 @@ export function createSSEStream(options: StreamOptions = {}) {
           // Do this before translation so we capture content regardless of translator output shape
 
           // Claude format
-          if (parsed.delta?.text) {
-            const t = parsed.delta.text;
-            totalContentLength += t.length;
-            if (state?.accumulatedContent !== undefined && typeof t === "string")
-              state.accumulatedContent = appendBoundedText(state.accumulatedContent, t);
-          }
-          if (parsed.delta?.thinking) {
-            const t = parsed.delta.thinking;
-            totalContentLength += t.length;
-            if (state?.accumulatedReasoning !== undefined && typeof t === "string")
-              state.accumulatedReasoning = appendBoundedText(state.accumulatedReasoning, t);
-          }
+          const claudeDelta = collectClaudeDelta(parsed.delta, state);
+          totalContentLength += claudeDelta.contentLength;
 
           // OpenAI format
           if (parsed.choices?.[0]?.delta?.content) {
@@ -2081,7 +2091,7 @@ export function createSSEStream(options: StreamOptions = {}) {
           }
 
           const translateHasContent =
-            typeof parsed.delta?.text === "string" ||
+            claudeDelta.hasText ||
             typeof parsed.choices?.[0]?.delta?.content === "string" ||
             Boolean(getAnyReasoningValue(parsed.choices?.[0]?.delta));
           if (translateHasContent && !contentAfterToolSeen) {
@@ -2185,6 +2195,7 @@ export function createSSEStream(options: StreamOptions = {}) {
               },
               pushProviderPayload: (payload: unknown) => providerPayloadCollector.push(payload),
               pushClientPayload: (payload: unknown) => clientPayloadCollector.push(payload),
+              sanitizeUsagePayload: (payload: unknown) => sanitizeUsagePayloadForRequest(payload, body, clientResponseFormat),
               setPassthroughResponsesId: (value: string) => {
                 passthroughResponsesId = value;
               },
@@ -2233,7 +2244,6 @@ export function createSSEStream(options: StreamOptions = {}) {
                 return;
               }
             }
-
             const bufferedLine = buffer.trim();
             if (skipPassthroughEvent || /^event:\s*keepalive\b/i.test(bufferedLine)) {
               skipPassthroughEvent = false;
@@ -2246,6 +2256,7 @@ export function createSSEStream(options: StreamOptions = {}) {
               const bufferedPayload = parseSSELine(bufferedLine);
               if (bufferedPayload) {
                 providerPayloadCollector.push(bufferedPayload);
+                if (sanitizeUsagePayloadForRequest(bufferedPayload, body, clientResponseFormat)) output = `data: ${JSON.stringify(bufferedPayload)}\n\n`;
                 if (
                   shouldInjectClaudeEmptyResponseBeforeCurrentEvent(
                     claudeEmptyResponseLifecycle,
@@ -2259,7 +2270,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                   updateClaudeEmptyResponseLifecycle(claudeEmptyResponseLifecycle, bufferedPayload);
                 }
                 clientPayloadCollector.push(bufferedPayload);
-
+                // Normalize numeric IDs for final buffered data: chunk (same as transform path)
                 if (typeof bufferedPayload === "object" && !Array.isArray(bufferedPayload)) {
                   const flushedParsed = bufferedPayload as JsonRecord;
                   const flushedType =
@@ -2616,6 +2627,27 @@ export function createSSEStream(options: StreamOptions = {}) {
             controller.error(
               markPendingRequestCleared(new Error(err.message || "Upstream failure"))
             );
+            return;
+          }
+
+          // #9268: reject a translate-mode stream that forwarded no valuable chunk
+          // (all-empty `choices: []`) instead of completing with an empty 200.
+          if (
+            mode === STREAM_MODE.TRANSLATE &&
+            rejectEmptyChoicesStream({
+              forwardedValuableChunk,
+              hasValidUsage: hasValidUsage(state?.usage),
+              providerPayloadCollector,
+              clientPayloadCollector,
+              targetFormat,
+              model,
+              usage: state?.usage,
+              onFailure,
+              onComplete,
+              clearPendingRequestFromStream,
+            })
+          ) {
+            controller.error(markPendingRequestCleared(buildEmptyChoicesStreamError()));
             return;
           }
 

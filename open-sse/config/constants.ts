@@ -172,6 +172,7 @@ export const HTTP_STATUS = {
   NOT_FOUND: 404,
   NOT_ACCEPTABLE: 406,
   REQUEST_TIMEOUT: 408,
+  GONE: 410,
   RATE_LIMITED: 429,
   SERVER_ERROR: 500,
   BAD_GATEWAY: 502,
@@ -329,4 +330,16 @@ export const STREAM_RECOVERY = {
   HOLDBACK_MS: 750,
   BUFFER_MAX_BYTES: 65536,
   EARLY_RETRY_MAX: 4,
+} as const;
+
+/**
+ * Active-stream quality watchdog defaults (#9709). This is separate from the
+ * idle timeout (no chunks) and the absolute upstream-attempt deadline: it only
+ * evaluates useful assistant output after warm-up plus one complete window.
+ */
+export const STREAM_THROUGHPUT_WATCHDOG = {
+  WARMUP_MS: 30_000,
+  WINDOW_MS: 30_000,
+  MIN_USEFUL_BYTES_PER_SECOND: 4,
+  MIN_USEFUL_BYTES: 1,
 } as const;

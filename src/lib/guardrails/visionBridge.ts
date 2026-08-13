@@ -13,7 +13,9 @@ import {
   callVisionModel as defaultCallVisionModel,
   composeVisionPrompt,
   replaceImageParts,
+  ensureBase64ImagesForClaudeWire,
 } from "./visionBridgeHelpers";
+import { fetch as undiciFetch } from "undici";
 import {
   getVisionBridgeConfig,
   isVisionBridgeForcedModel,
@@ -256,8 +258,13 @@ export class VisionBridgeGuardrail extends BaseGuardrail {
     // request with model=auto would land on a text-only model (#7871). Keeping
     // "auto" is never the answer there, so the keep-credentialed-model skip
     // below does not apply to auto — only the reroute-target credential guard.
+    const rerouteTextOnly = settings.visionBridgeRerouteTextOnly === true;
+    // Reroute when the operator opted in to direct VLM routing for every text-only
+    // route (keeps image bytes instead of a lossy bridge description), or when the
+    // auto heuristic deems the request eligible.
     const rerouteEligible =
-      (comboVisionBridgeDecision === "not-combo" || isAuto) && !forceVisionBridge;
+      rerouteTextOnly ||
+      ((comboVisionBridgeDecision === "not-combo" || isAuto) && !forceVisionBridge);
     // Forced modes short-circuit BEFORE the auto heuristic (#6640/#7204 untouched):
     // - "describe" skips the whole reroute block → straight to the describe path.
     // - "reroute" skips only the keep-credentialed-model guard; the reroute-target
@@ -267,7 +274,7 @@ export class VisionBridgeGuardrail extends BaseGuardrail {
       const checkCreds = this.deps.hasUsableCredentials ?? hasUsableCredentialsForModel;
       const originalUsable = runtime.mode === "reroute" ? false : await checkCreds(model);
 
-      if (originalUsable === true && !isAuto) {
+      if (originalUsable === true && !isAuto && !rerouteTextOnly) {
         // Keep the credentialed model; describe images below if needed.
         context.log?.debug?.(
           "VISION_BRIDGE",
@@ -298,14 +305,27 @@ export class VisionBridgeGuardrail extends BaseGuardrail {
           const bestUsable = await checkCreds(bestModel);
           // Only block the reroute when we KNOW the target is unusable (false).
           // `null` (no DB / tests) fails open so existing unit tests keep working.
-          if (bestUsable === false) {
+          // `auto/*` ids (e.g. auto/best-vision) are VIRTUAL combos: credentials
+          // resolve through their member models at request time, so a missing
+          // "auto" provider row (hasUsableCredentialsForModel → false) must
+          // never block the reroute.
+          if (bestUsable === false && !bestModel.startsWith("auto/")) {
             context.log?.warn?.(
               "VISION_BRIDGE",
               `Vision reroute target ${bestModel} has no usable credentials; describing images instead of hijacking ${model}`
             );
           } else {
+            // Claude-wire backends (minimax, zai, …) reject remote image URLs
+            // (MiniMax 403 2013); resolve them to base64 before rerouting so
+            // the rerouted request can actually be processed upstream. Use
+            // undici fetch to bypass the runtime's hooked global fetch.
+            const rerouteBody = await ensureBase64ImagesForClaudeWire(
+              body as Parameters<typeof ensureBase64ImagesForClaudeWire>[0],
+              bestModel,
+              undiciFetch as unknown as typeof fetch
+            );
             const modifiedBody = {
-              ...(body as Record<string, unknown>),
+              ...(rerouteBody as Record<string, unknown>),
               model: bestModel,
             };
             return {
@@ -347,7 +367,14 @@ export class VisionBridgeGuardrail extends BaseGuardrail {
     // targets what the user actually asked instead of a generic caption.
     const lastUserText = extractLastUserText(messages);
     const composedPrompt = composeVisionPrompt(config.prompt, lastUserText, runtime.taskAware);
-    const describeConfig = { ...config, prompt: composedPrompt };
+    // Bypass the runtime's hooked global fetch (ProxyFetch) for the self-loop
+    // describe call — a dead local proxy (127.0.0.1:8317) would otherwise break
+    // every describe. Tests inject their own callVisionModel.
+    const describeConfig = {
+      ...config,
+      prompt: composedPrompt,
+      fetchImpl: undiciFetch as unknown as typeof fetch,
+    };
 
     // Shared describe cache (sha256 of contentRef+prompt+model): the same image
     // with the same prompt/model is described once per TTL. Failures are never

@@ -244,6 +244,15 @@ const TOOLS_GROUP: SidebarItemGroup = {
       icon: "cloud",
     },
     {
+      id: "conductor",
+      href: "/dashboard/conductor",
+      i18nKey: "conductor",
+      subtitleKey: "conductorSubtitle",
+      icon: "account_tree",
+      labelFallback: "Conductor",
+      subtitleFallback: "CLI-agent fleet",
+    },
+    {
       id: "agent-bridge",
       href: "/dashboard/tools/agent-bridge",
       i18nKey: "agentBridge",
@@ -674,6 +683,13 @@ const CONFIGURATION_ITEMS: readonly SidebarItemDefinition[] = [
     i18nKey: "settingsAi",
     subtitleKey: "settingsAiSubtitle",
     icon: "auto_awesome",
+  },
+  {
+    id: "settings-modality-bridge",
+    href: "/dashboard/settings/modality-bridge",
+    i18nKey: "settingsModalityBridge",
+    subtitleKey: "settingsModalityBridgeSubtitle",
+    icon: "image_search",
   },
   {
     id: "settings-routing",

@@ -263,6 +263,22 @@ test("handleResponsesCore preserves Kimi K3 reasoning through provider translati
   assert.equal(native.call.body.messages?.[1]?.reasoning_content, "I should search first.");
 });
 
+test("handleResponsesCore maps unsupported Kimi K3 xhigh effort to max", async () => {
+  const { call, result } = await invokeResponsesCore({
+    body: {
+      model: "k3-256k",
+      reasoning: { effort: "xhigh", summary: "auto" },
+      input: "Reply with OK.",
+    },
+    provider: "kimi-coding-apikey",
+    model: "k3-256k",
+  });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(call.body.thinking, { type: "enabled" });
+  assert.deepEqual(call.body.output_config, { effort: "max" });
+});
+
 test("handleResponsesCore strips previous_response_id by default and handles empty input arrays", async () => {
   const { call, result } = await invokeResponsesCore({
     body: {
@@ -367,8 +383,8 @@ test("handleResponsesCore transforms Command Code executor SSE through Responses
   assert.match(sse, /data: \[DONE\]/);
 });
 
-test("handleResponsesCore propagates upstream failures from chatCore unchanged", async () => {
-  const { result } = await invokeResponsesCore({
+test("handleResponsesCore propagates upstream failures without retrying", async () => {
+  const { result, calls } = await invokeResponsesCore({
     body: {
       model: "gpt-4o-mini",
       input: "hello",
@@ -382,6 +398,7 @@ test("handleResponsesCore propagates upstream failures from chatCore unchanged",
 
   assert.equal(result.success, false);
   assert.equal(result.status, 401);
+  assert.equal(calls.length, 1);
 
   const payload = (await result.response.json()) as ErrorPayload;
   assert.equal(payload.error.message, "[401]: unauthorized");
