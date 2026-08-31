@@ -209,7 +209,7 @@ import { pathToFileURL } from 'node:url'; \
 const standaloneRoot = '/app/.build/next/standalone/node_modules/'; \
 const require = createRequire('/app/.build/next/standalone/package.json'); \
 const isNativeErr = (e) => e.code === 'ERR_DLOPEN_FAILED' || /ERR_DLOPEN_FAILED|cannot open shared object file|Could not load the .* module/i.test(String(e.message || e)); \
-for (const pkg of ['@atjsh/llmlingua-2', '@huggingface/transformers', '@tensorflow/tfjs', 'js-tiktoken']) { \
+for (const pkg of ['@atjsh/llmlingua-2', '@huggingface/transformers', 'js-tiktoken']) { \
   const resolved = require.resolve(pkg); \
   if (!resolved.startsWith(standaloneRoot)) throw new Error(pkg + ' resolved outside standalone: ' + resolved); \
   try { await import(pathToFileURL(resolved).href); } \
