@@ -355,7 +355,7 @@ RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-cache,targe
 RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-npm-cache,target=/root/.npm \
   npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid openclaw@latest
 
-# Install Devin CLI
-RUN curl -fsSL https://cli.devin.ai/install.sh | bash
+# Install Devin CLI (piped through sed to remove the interactive "devin setup" prompt that breaks Docker build)
+RUN curl -fsSL https://cli.devin.ai/install.sh | sed '/COMPILED_BIN_NAME" setup/d' | bash
 
 USER node
