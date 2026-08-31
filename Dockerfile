@@ -355,7 +355,19 @@ RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-apt-cache,targe
 RUN --mount=type=cache,id=s/92ca8a61-c1ba-421f-a389-d48ac7258c2d-npm-cache,target=/root/.npm \
   npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid openclaw@latest
 
-# Install Devin CLI (piped through sed to remove the interactive "devin setup" prompt that breaks Docker build)
-RUN curl -fsSL https://cli.devin.ai/install.sh | sed '/COMPILED_BIN_NAME" setup/d' | bash
+# Install Devin CLI
+ARG DEVIN_CLI_VERSION=3000.2.17
+ARG TARGETARCH
+RUN set -eu; \
+  case "${TARGETARCH:-amd64}" in \
+    amd64) devin_arch=x86_64-unknown-linux; devin_sha=f0e1e9363afc6ee68c4ef87bab4aeb7ff5cc08a5fa838350ef3ceefdbb2a2be2 ;; \
+    arm64) devin_arch=aarch64-unknown-linux; devin_sha=116dc71ef085a922bc3ff0ea0377d4b26c529a431d58246e36572913e2d25624 ;; \
+    *) echo "Unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+  esac; \
+  curl -fsSL "https://static.devin.ai/cli/${DEVIN_CLI_VERSION}/devin-${DEVIN_CLI_VERSION}-${devin_arch}.tar.gz" -o /tmp/devin.tar.gz; \
+  echo "${devin_sha}  /tmp/devin.tar.gz" | sha256sum -c -; \
+  tar -xzf /tmp/devin.tar.gz -C /tmp; \
+  install -m 0755 "$(find /tmp -type f -name devin | head -1)" /usr/local/bin/devin; \
+  rm -rf /tmp/devin.tar.gz /tmp/devin-*
 
 USER node
